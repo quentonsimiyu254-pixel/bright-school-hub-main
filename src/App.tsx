@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // IMPORT CHECK: Use curly braces because we used 'export const'
-import { AdminDashboard } from "./components/admin/AdminDashboard";
+import AdminDashboard from "./components/admin/AdminDashboard";
 import { ParentDashboard } from "./pages/ParentDashboard";
 import { Auth } from "./pages/Auth";
 
