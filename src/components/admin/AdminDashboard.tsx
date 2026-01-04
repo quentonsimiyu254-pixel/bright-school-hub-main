@@ -1,144 +1,157 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { GraduationCap, Users, FileText, Download } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { generateReportCard } from "@/services/ReportCardGenerator";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { UserPlus, ClipboardList, Users, Settings, Link as LinkIcon, Check } from 'lucide-react';
 
-const AdminDashboard = () => {
-  const [exams, setExams] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+export default function AdminDashboard() {
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('teacher');
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchExams();
-  }, []);
-
-  const fetchExams = async () => {
+  const handleGenerateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
     try {
-      // Fetch exams and join with student profiles
+      const { data: { user } } = await supabase.auth.getUser();
+      const schoolId = user?.user_metadata?.school_id;
+
       const { data, error } = await supabase
-        .from("exams")
-        .select(`
-          *,
-          profiles:student_id (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false });
+        .from('invites')
+        .insert([{ 
+          email: inviteEmail, 
+          role: inviteRole, 
+          school_id: schoolId 
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
-      setExams(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Error fetching data",
-        description: error.message,
-        variant: "destructive",
-      });
+
+      const link = `${window.location.origin}/invite/${data.token}`;
+      setGeneratedLink(link);
+    } catch (err: any) {
+      alert(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Admin Management</h1>
-        <Button onClick={fetchExams} variant="outline">Refresh Data</Button>
-      </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar */}
+      <aside className="w-64 bg-indigo-900 text-white p-6 hidden md:block">
+        <div className="mb-8">
+          <h2 className="text-xl font-bold italic text-white">BrightHub Admin</h2>
+        </div>
+        <nav className="space-y-4">
+          <div className="flex items-center gap-3 p-2 bg-indigo-800 rounded-lg cursor-pointer">
+            <Settings size={20}/> 
+            <span>Dashboard</span>
+          </div>
+          <div className="flex items-center gap-3 p-2 hover:bg-indigo-800 rounded-lg cursor-pointer text-indigo-200">
+            <Users size={20}/> 
+            <span>Management</span>
+          </div>
+        </nav>
+      </aside>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">248</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-green-50 border-green-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Active Exams</CardTitle>
-            <GraduationCap className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{exams.length}</div>
-          </CardContent>
-        </Card>
+      {/* Main Content */}
+      <main className="flex-1 p-8">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">School Setup Control</h1>
+          <p className="text-gray-500">Welcome to your institution's command center.</p>
+        </header>
 
-        <Card className="bg-purple-50 border-purple-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Reports Pending</CardTitle>
-            <FileText className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12</div>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Setup Checklist */}
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
+              <ClipboardList className="text-blue-600" size={20} /> 
+              Setup Checklist
+            </h2>
+            <div className="space-y-4">
+              {[
+                { task: 'Register School Profile', done: true },
+                { task: 'Invite Teachers', done: false },
+                { task: 'Add Classes & Subjects', done: false },
+                { task: 'Invite Parents/Students', done: false }
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className={item.done ? 'text-gray-400 line-through' : 'text-gray-700'}>{item.task}</span>
+                  {item.done ? <Check className="text-green-500" size={18} /> : <div className="w-5 h-5 border-2 rounded-full border-gray-300"></div>}
+                </div>
+              ))}
+            </div>
+          </section>
 
-      {/* Main Action Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Exam Submissions & Reports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student Name</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center">Loading records...</TableCell></TableRow>
-              ) : exams.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center">No exam records found.</TableCell></TableRow>
-              ) : (
-                exams.map((exam) => (
-                  <TableRow key={exam.id}>
-                    <TableCell className="font-medium">
-                      {exam.profiles?.full_name || "Unknown Student"}
-                    </TableCell>
-                    <TableCell>{exam.subject}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        exam.marks >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {exam.marks}%
-                      </span>
-                    </TableCell>
-                    <TableCell>{new Date(exam.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        size="sm" 
-                        className="bg-slate-800 hover:bg-slate-700 text-white"
-                        onClick={() => generateReportCard(exam.profiles, [exam])}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Generate Report
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          {/* Invite System UI */}
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
+              <UserPlus className="text-indigo-600" size={20} /> 
+              Invite Staff & Users
+            </h2>
+            <form onSubmit={handleGenerateInvite} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Email Address</label>
+                <input 
+                  type="email" 
+                  placeholder="user@example.com"
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-white text-black outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Role</label>
+                <select 
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-white text-black outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                >
+                  <option value="teacher">Teacher</option>
+                  <option value="parent">Parent</option>
+                  <option value="student">Student</option>
+                </select>
+              </div>
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Generating Link...' : 'Generate Invite Link'}
+              </button>
+            </form>
+
+            {/* Generated Link Display */}
+            {generatedLink && (
+              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800 font-medium mb-2">Invite link ready to share:</p>
+                <div className="flex items-center gap-2">
+                  <input 
+                    readOnly 
+                    value={generatedLink} 
+                    className="flex-1 text-xs p-2 bg-white border border-gray-200 rounded text-gray-600" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedLink);
+                      alert("Copied to clipboard!");
+                    }}
+                    className="p-2 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    <LinkIcon size={16} className="text-gray-600" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+        </div>
+      </main>
     </div>
   );
-};
-
-export default AdminDashboard;
+}

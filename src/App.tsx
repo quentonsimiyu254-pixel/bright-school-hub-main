@@ -2,13 +2,18 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
-// Pages
+// Public Pages
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
-import SignUp from './pages/SignUp';
+import RegisterSchool from './pages/RegisterSchool';
+import AcceptInvite from './pages/AcceptInvite';
+import SignUp from './pages/SignUp'; // For Individual Signup (Path B)
+
+// Dashboards
 import AdminDashboard from './components/admin/AdminDashboard';
-import TeacherDashboard from './pages/TeacherDashboard'; 
-import ParentDashboard from './pages/ParentDashboard';   
-import StudentDashboard from './pages/StudentDashboard'; 
+import TeacherDashboard from './pages/TeacherDashboard';
+import ParentDashboard from './pages/ParentDashboard';
+import StudentDashboard from './pages/StudentDashboard';
 
 // Components
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -18,13 +23,13 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Get initial session
+    // 1. Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // 2. Listen for login/logout events
+    // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -32,14 +37,10 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Show a clean loader while checking authentication
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading Bright School Hub...</p>
-        </div>
+      <div className="flex h-screen w-full items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -47,14 +48,23 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* --- Public Routes --- */}
-        {/* If user is logged in, redirect them away from login/signup to the root */}
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
-        <Route path="/signup" element={!session ? <SignUp /> : <Navigate to="/" replace />} />
+        {/* --- STEP 1: PUBLIC ROUTES --- */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/check-role" replace />} />
+        
+        {/* --- STEP 2: ENTRY MODELS --- */}
+        {/* Path A: School Registration */}
+        <Route path="/register-school" element={<RegisterSchool />} />
+        
+        {/* Path B: Individual Signup */}
+        <Route path="/signup" element={<SignUp />} />
 
-        {/* --- Protected Dashboards --- */}
+        {/* --- STEP 5: INVITE ACCEPTANCE --- */}
+        <Route path="/invite/:token" element={<AcceptInvite />} />
+
+        {/* --- ROLE-BASED PROTECTED DASHBOARDS --- */}
         <Route 
-          path="/admin" 
+          path="/admin/*" 
           element={
             <ProtectedRoute allowedRole="admin">
               <AdminDashboard />
@@ -63,7 +73,7 @@ function App() {
         />
         
         <Route 
-          path="/teacher" 
+          path="/teacher/*" 
           element={
             <ProtectedRoute allowedRole="teacher">
               <TeacherDashboard />
@@ -72,7 +82,7 @@ function App() {
         />
 
         <Route 
-          path="/parent" 
+          path="/parent/*" 
           element={
             <ProtectedRoute allowedRole="parent">
               <ParentDashboard />
@@ -81,7 +91,7 @@ function App() {
         />
 
         <Route 
-          path="/student" 
+          path="/student/*" 
           element={
             <ProtectedRoute allowedRole="student">
               <StudentDashboard />
@@ -89,26 +99,43 @@ function App() {
           } 
         />
 
-        {/* --- Logic for the Root Path (/) --- */}
-        {/* This helps redirect the user to their specific dashboard automatically */}
-        <Route path="/" element={
-          session ? (
-            <div className="flex h-screen w-full items-center justify-center">
-              <p>Redirecting to your dashboard...</p>
-              {/* Note: Your Login.tsx usually handles this redirect, 
-                  but this acts as a safety net */}
-              <Navigate to="/login" replace /> 
-            </div>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        } />
+        {/* --- AUTO-REDIRECT LOGIC --- */}
+        <Route path="/check-role" element={<RoleRedirectHandler />} />
 
-        {/* Fallback for broken links */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+/**
+ * Helper component to send logged-in users to their 
+ * specific dashboard based on their database role.
+ */
+function RoleRedirectHandler() {
+  const [target, setTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function getRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        setTarget(`/${profile?.role || 'login'}`);
+      } else {
+        setTarget('/login');
+      }
+    }
+    getRole();
+  }, []);
+
+  if (!target) return null;
+  return <Navigate to={target} replace />;
 }
 
 export default App;
