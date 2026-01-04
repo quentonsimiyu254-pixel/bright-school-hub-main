@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { generateReportCard } from "../components/admin/ReportGenerator.tsx";
+import { generateReportCard } from "../services/ReportCardGenerator";
 import { GraduationCap, FileDown, Search } from "lucide-react";
 
 export const ExamManager = () => {
