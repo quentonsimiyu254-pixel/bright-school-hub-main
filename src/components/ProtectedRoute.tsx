@@ -1,30 +1,31 @@
-import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+export const ProtectedRoute = ({ children, allowedRole }: { children: React.ReactNode, allowedRole: string }) => {
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    async function getProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        setRole(data?.role || null);
+      }
       setLoading(false);
-    });
-
-    // Listen for changes (Logout/Login)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    getProfile();
   }, []);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return null; // Or a spinner
 
-  if (!session) {
-    return <Navigate to="/login" />;
+  if (!role || role !== allowedRole) {
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

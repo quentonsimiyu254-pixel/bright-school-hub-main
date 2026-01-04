@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
-// Option 1: Export it here
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -10,7 +9,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // This is critical!
     setLoading(true);
 
     try {
@@ -22,49 +21,54 @@ export default function Login() {
       if (error) throw error;
 
       if (data.user) {
-        console.log("Login successful, redirecting...");
-        // Ensure this path matches exactly what you set in App.tsx
         navigate('/admin'); 
       }
     } catch (error: any) {
-      alert(error.message || "An error occurred during login");
+      alert(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-      <form onSubmit={handleLogin} className="p-8 border rounded-lg shadow-md w-96 bg-white">
-        <h1 className="text-2xl font-bold mb-4 text-center">Bright School Hub Login</h1>
-        <div className="space-y-4">
-          <input 
-            type="email" 
-            placeholder="Email" 
-            className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-          />
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg z-10">
+        <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">School Hub</h1>
+        
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email Address</label>
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)} 
+              className="mt-1 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="admin@school.com"
+              required 
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)} 
+              className="mt-1 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="••••••••"
+              required 
+            />
+          </div>
+
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 disabled:opacity-50"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Authenticating...' : 'Sign In'}
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
-
-// REMOVED the extra "export default Login;" from here to avoid the error.
