@@ -1,30 +1,35 @@
 import { supabase } from './supabase';
 
-// Make sure 'export' is written before 'const'
 export const instantRegister = async (formData: any) => {
+  let table = '';
+  let insertData: any = {
+    full_name: formData.name,
+    phone_number: formData.phone,
+  };
+
+  // Logic to determine which table to use
+  if (formData.role === 'parent') {
+    table = 'parents';
+  } else {
+    table = 'staff';
+    insertData.role = formData.role; // Stores 'admin' or 'teacher'
+    insertData.id_number = formData.idNumber;
+  }
+
   const { data, error } = await supabase
-    .from('profiles')
-    .insert([{
-      full_name: formData.name,
-      role: formData.role,
-      phone_number: formData.phone,
-      id_number: formData.idNumber
-    }])
+    .from(table)
+    .insert([insertData])
     .select()
     .single();
 
   if (error) {
-    console.error("Supabase Insert Error:", error);
+    console.error("Database Error:", error.message);
     throw error;
   }
 
-  // Save to local storage for the "Zero Friction" session
-  localStorage.setItem('edusphere_session', JSON.stringify(data));
-  return data;
-};
-
-export const detectIdentity = (input: string) => {
-  if (input.toUpperCase().startsWith('ADM')) return 'student';
-  if (/^(?:254|0)?(7|1)\d{8}$/.test(input)) return 'phone';
-  return 'staff';
+  // Save the session with the role so App.tsx knows where to send them
+  const sessionUser = { ...data, role: formData.role };
+  localStorage.setItem('edusphere_session', JSON.stringify(sessionUser));
+  
+  return sessionUser;
 };
