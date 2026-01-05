@@ -1,77 +1,115 @@
 import { useState } from 'react';
-import { detectIdentity } from '../lib/auth-service';
-import { ShieldCheck, Smartphone, UserCircle, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { Search, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
 export default function SmartLogin() {
-  const [step, setStep] = useState(1); // 1: Identity, 2: OTP/PIN
+  const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userType, setUserType] = useState<any>(null);
+  const [error, setError] = useState('');
 
-  const handleStep1 = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const detection = await detectIdentity(identifier);
-    setUserType(detection);
-    
-    // Logic: If Admin/Teacher -> Trigger SMS OTP
-    // Logic: If Student -> Prompt for PIN or Parent OTP
-    setTimeout(() => { 
-      setStep(2); 
-      setLoading(false); 
-    }, 800);
+    setError('');
+
+    try {
+      // 1. Check if it's a Student (Admission Number)
+      if (identifier.toUpperCase().startsWith('ADM')) {
+        const { data: student, error: sError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('admission_number', identifier.toUpperCase())
+          .single();
+
+        if (student) {
+          localStorage.setItem('edusphere_user', JSON.stringify({ ...student, role: 'student' }));
+          navigate('/student-hub');
+          return;
+        }
+      }
+
+      // 2. Check if it's a Staff/Parent (Phone or Full Name)
+      const { data: profile, error: pError } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`phone_number.eq.${identifier},full_name.ilike.%${identifier}%`)
+        .single();
+
+      if (profile) {
+        localStorage.setItem('edusphere_user', JSON.stringify(profile));
+        
+        // Dynamic Redirect based on saved role
+        const paths: any = {
+          admin: '/admin',
+          teacher: '/teacher-portal',
+          parent: '/parent-portal'
+        };
+        navigate(paths[profile.role] || '/register');
+      } else {
+        setError('No account found. Please check your details or register.');
+      }
+    } catch (err) {
+      setError('System connection error. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-6">
-      <div className="max-w-sm w-full">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="max-w-md w-full">
+        {/* LOGO SECTION */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-black text-slate-900 mb-2">Edusphere</h1>
-          <p className="text-slate-500 font-medium">Global School Hub</p>
+          <div className="inline-block p-4 bg-indigo-600 rounded-[2rem] shadow-xl shadow-indigo-100 text-white mb-4">
+            <Search size={32} />
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Welcome Back</h1>
+          <p className="text-slate-400 font-bold mt-2 uppercase text-xs tracking-[0.2em]">Edusphere Global Hub</p>
         </div>
 
-        {step === 1 ? (
-          <form onSubmit={handleStep1} className="space-y-6">
-            <div className="relative">
-              <label className="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Identity</label>
+        {/* LOGIN CARD */}
+        <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="text-xs font-black uppercase text-slate-400 ml-2 tracking-widest">Identify Yourself</label>
               <input 
                 required
-                className="w-full mt-2 p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-lg focus:border-indigo-600 outline-none transition-all"
-                placeholder="Phone / Admission / Staff ID"
+                className="w-full mt-2 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none focus:border-indigo-600 focus:bg-white transition-all text-lg font-medium"
+                placeholder="Phone, ADM No, or Name"
                 onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
-            <button className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-bold text-lg shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
-              {loading ? <Loader2 className="animate-spin" /> : "Continue"}
+
+            {error && (
+              <div className="flex items-center gap-2 text-rose-600 bg-rose-50 p-4 rounded-2xl text-sm font-bold animate-shake">
+                <AlertCircle size={18} /> {error}
+              </div>
+            )}
+
+            <button 
+              disabled={loading}
+              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl shadow-xl hover:bg-indigo-600 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <>Enter Portal <ArrowRight size={20}/></>}
             </button>
           </form>
-        ) : (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-indigo-50 p-6 rounded-3xl flex items-center gap-4 border border-indigo-100">
-              <div className="bg-white p-2 rounded-xl shadow-sm"><UserCircle className="text-indigo-600"/></div>
-              <div>
-                <p className="text-xs font-bold text-indigo-400 uppercase">Verifying</p>
-                <p className="font-bold text-indigo-900">{identifier}</p>
-              </div>
-            </div>
-
-            <input 
-              type="text"
-              maxLength={6}
-              className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-center text-3xl font-black tracking-[1rem] outline-none focus:border-indigo-600"
-              placeholder="000000"
-            />
-            
-            <p className="text-center text-sm text-slate-400 font-medium">
-              {userType?.type === 'student' ? "Enter your parent's OTP or your PIN" : "Enter the OTP sent via WhatsApp/SMS"}
-            </p>
-
-            <button className="w-full py-5 bg-slate-900 text-white rounded-3xl font-bold text-lg">
-              Verify & Enter
+          
+          <div className="mt-8 pt-8 border-t border-slate-50 text-center">
+            <p className="text-slate-400 font-bold text-sm">New to the school?</p>
+            <button 
+              onClick={() => navigate('/register')}
+              className="mt-2 text-indigo-600 font-black hover:underline"
+            >
+              Create an Account Instantly
             </button>
-            <button onClick={() => setStep(1)} className="w-full text-slate-400 font-bold text-sm">Change ID</button>
           </div>
-        )}
+        </div>
+
+        <p className="text-center mt-10 text-slate-300 text-xs font-bold uppercase tracking-widest">
+          Secured by Edusphere Node • Thika, Kenya
+        </p>
       </div>
     </div>
   );
