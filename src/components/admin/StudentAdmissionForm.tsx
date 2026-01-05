@@ -1,71 +1,88 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { admitStudent } from '../../lib/student-service';
+import { UserPlus, Hash, UserCircle } from 'lucide-react';
 
-export const StudentAdmissionForm = ({ onComplete }: { onComplete: () => void }) => {
+export default function StudentAdmissionForm() {
+  const [parents, setParents] = useState<any[]>([]);
+  const [form, setForm] = useState({ name: '', admNo: '', parentId: '' });
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    fullName: "",
-    admissionNumber: "",
-    classId: "",
-    parentEmail: "",
-  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Fetch parents so we can link the student
+  useEffect(() => {
+    const getParents = async () => {
+      const { data } = await supabase.from('parents').select('id, full_name');
+      if (data) setParents(data);
+    };
+    getParents();
+  }, []);
+
+  const handleAdmission = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      // Create the student profile in Supabase
-      const { data, error } = await supabase.from('profiles').insert([
-        { 
-          full_name: formData.fullName,
-          admission_number: formData.admissionNumber,
-          role: 'student',
-          fee_balance: 0
-        }
-      ]);
-
-      if (error) throw error;
-      alert("Student enrolled successfully!");
-      onComplete(); // Refresh the list or close the modal
-    } catch (err: any) {
-      alert(err.message);
+      await admitStudent(form);
+      alert("Student Admitted Successfully!");
+      setForm({ name: '', admNo: '', parentId: '' }); // Reset
+    } catch (err) {
+      alert("Admission Failed. Check if Adm No is unique.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-white/5 p-6 rounded-2xl border border-white/10 text-white animate-in zoom-in-95 duration-200">
-      <h3 className="text-xl font-bold mb-4">New Student Enrollment</h3>
-      
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">Full Name</label>
-        <input 
-          placeholder="e.g. John Doe" 
-          className="w-full bg-black/20 border border-white/10 p-3 rounded-xl outline-none focus:border-blue-500 transition-all"
-          onChange={e => setFormData({...formData, fullName: e.target.value})}
-          required
-        />
+    <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 max-w-lg">
+      <div className="flex items-center gap-3 mb-6 text-indigo-600">
+        <UserPlus size={28} />
+        <h2 className="text-2xl font-black text-slate-900">New Admission</h2>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">Admission Number</label>
-        <input 
-          placeholder="e.g. ADM-2024-001" 
-          className="w-full bg-black/20 border border-white/10 p-3 rounded-xl outline-none focus:border-blue-500 transition-all"
-          onChange={e => setFormData({...formData, admissionNumber: e.target.value})}
-          required
-        />
-      </div>
+      <form onSubmit={handleAdmission} className="space-y-4">
+        <div>
+          <label className="text-xs font-black text-slate-400 ml-2 uppercase">Student Full Name</label>
+          <input 
+            required
+            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-indigo-600"
+            placeholder="e.g. Prince Junior"
+            value={form.name}
+            onChange={e => setForm({...form, name: e.target.value})}
+          />
+        </div>
 
-      <button 
-        type="submit" 
-        disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 py-3 mt-4 rounded-xl font-bold transition-all disabled:opacity-50"
-      >
-        {loading ? "Processing..." : "Enroll Student"}
-      </button>
-    </form>
+        <div>
+          <label className="text-xs font-black text-slate-400 ml-2 uppercase">Admission Number</label>
+          <input 
+            required
+            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-indigo-600"
+            placeholder="ADM-2024-001"
+            value={form.admNo}
+            onChange={e => setForm({...form, admNo: e.target.value.toUpperCase()})}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-black text-slate-400 ml-2 uppercase">Link to Parent</label>
+          <select 
+            required
+            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-indigo-600"
+            value={form.parentId}
+            onChange={e => setForm({...form, parentId: e.target.value})}
+          >
+            <option value="">Select Parent...</option>
+            {parents.map(p => (
+              <option key={p.id} value={p.id}>{p.full_name}</option>
+            ))}
+          </select>
+        </div>
+
+        <button 
+          disabled={loading}
+          className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+        >
+          {loading ? "Registering Student..." : "Confirm Admission"}
+        </button>
+      </form>
+    </div>
   );
-};
+}
