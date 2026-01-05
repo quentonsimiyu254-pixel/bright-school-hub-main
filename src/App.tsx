@@ -1,64 +1,102 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
 // Pages
-import LandingPage from './pages/LandingPage';
-import Login from './pages/Login';
+import SmartLogin from './pages/Login';
 import RegisterSchool from './pages/RegisterSchool';
-import SignUp from './pages/SignUp';
-import AcceptInvite from './pages/AcceptInvite';
-import AuthCallback from './pages/AuthCallback';
-
-// Dashboards
 import AdminDashboard from './components/admin/AdminDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
-import ParentDashboard from './pages/ParentDashboard';
-import StudentDashboard from './pages/StudentDashboard';
+import TeacherJoin from './pages/TeacherJoin';
 
-// Components
-import { ProtectedRoute } from './components/ProtectedRoute';
-
-export default function App() {
-  const [session, setSession] = useState<any>(null);
+// Reusable Protected Route Component
+const ProtectedRoute = ({ children, allowedRole }: { children: JSX.Element, allowedRole?: string }) => {
   const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setAuthenticated(true);
+        setUserRole(session.user.user_metadata.role);
+      }
       setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    checkAuth();
   }, []);
 
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center font-bold text-slate-400">Loading Edusphere...</div>;
+  
+  if (!authenticated) return <Navigate to="/login" />;
+  
+  // If a specific role is required (e.g., admin only)
+  if (allowedRole && userRole !== allowedRole) return <Navigate to="/unauthorized" />;
 
+  return children;
+};
+
+function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
+        {/* --- PUBLIC ROUTES --- */}
+        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="/login" element={<SmartLogin />} />
         <Route path="/register-school" element={<RegisterSchool />} />
-        <Route path="/signup" element={<SignUp />} />
         
-        {/* The Magic Link Handler */}
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/invite/:token" element={<AcceptInvite />} />
+        {/* --- THE MAGIC INVITE ROUTE --- */}
+        {/* This is where teachers land when they click the WhatsApp link */}
+        <Route path="/join/:schoolId" element={<TeacherJoin />} />
 
-        {/* Protected Dashboard Routes */}
-        <Route path="/admin/*" element={<ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/teacher/*" element={<ProtectedRoute allowedRole="teacher"><TeacherDashboard /></ProtectedRoute>} />
-        <Route path="/parent/*" element={<ProtectedRoute allowedRole="parent"><ParentDashboard /></ProtectedRoute>} />
-        <Route path="/student/*" element={<ProtectedRoute allowedRole="student"><StudentDashboard /></ProtectedRoute>} />
+        {/* --- PROTECTED ADMIN ROUTES --- */}
+        <Route 
+          path="/admin/*" 
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* --- PROTECTED TEACHER/STUDENT ROUTES (Placeholders) --- */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              {/* This logic can redirect to /admin or /teacher based on role */}
+              <DashboardRedirect />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* 404 Page */}
+        <Route path="*" element={<div className="h-screen flex flex-col items-center justify-center">
+          <h1 className="text-4xl font-black">404</h1>
+          <p className="text-slate-500">Page not found</p>
+          <button onClick={() => window.location.href='/login'} className="mt-4 text-indigo-600 font-bold">Go Back Home</button>
+        </div>} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
+
+// Helper component to send users to the right dashboard after login
+function DashboardRedirect() {
+  const [role, setRole] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const getRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setRole(user?.user_metadata.role);
+    };
+    getRole();
+  }, []);
+
+  if (!role) return null;
+  if (role === 'admin') return <Navigate to="/admin" />;
+  if (role === 'teacher') return <Navigate to="/teacher-portal" />;
+  return <Navigate to="/student-hub" />;
+}
+
+export default App;
