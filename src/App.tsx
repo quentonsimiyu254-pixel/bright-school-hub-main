@@ -2,13 +2,17 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
-// Pages
+// Page Imports
 import SmartLogin from './pages/Login';
 import RegisterSchool from './pages/RegisterSchool';
 import AdminDashboard from './components/admin/AdminDashboard';
+import TeacherPortal from './pages/TeacherPortal';
 import TeacherJoin from './pages/TeacherJoin';
 
-// Reusable Protected Route Component
+/**
+ * PROTECTED ROUTE COMPONENT
+ * Checks if a user is logged in and if they have the right role (Admin/Teacher)
+ */
 const ProtectedRoute = ({ children, allowedRole }: { children: JSX.Element, allowedRole?: string }) => {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -26,27 +30,62 @@ const ProtectedRoute = ({ children, allowedRole }: { children: JSX.Element, allo
     checkAuth();
   }, []);
 
-  if (loading) return <div className="h-screen flex items-center justify-center font-bold text-slate-400">Loading Edusphere...</div>;
+  if (loading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-bold animate-pulse">Loading Edusphere...</p>
+      </div>
+    );
+  }
   
   if (!authenticated) return <Navigate to="/login" />;
   
-  // If a specific role is required (e.g., admin only)
-  if (allowedRole && userRole !== allowedRole) return <Navigate to="/unauthorized" />;
+  // Role Protection: If user is a Teacher trying to access /admin, kick them back
+  if (allowedRole && userRole !== allowedRole) {
+    return <Navigate to="/unauthorized" />;
+  }
 
   return children;
 };
 
-function App() {
+/**
+ * DASHBOARD REDIRECTOR
+ * Logic that decides where to send a user immediately after they login
+ */
+function DashboardRedirect() {
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const getRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setRole(user?.user_metadata.role || null);
+      setLoading(false);
+    };
+    getRole();
+  }, []);
+
+  if (loading) return null;
+
+  if (role === 'admin') return <Navigate to="/admin" />;
+  if (role === 'teacher') return <Navigate to="/teacher-portal" />;
+  
+  // Default for students or unknown roles
+  return <Navigate to="/login" />;
+}
+
+export default function App() {
   return (
     <Router>
       <Routes>
-        {/* --- PUBLIC ROUTES --- */}
+        {/* --- PUBLIC ACCESSIBLE ROUTES --- */}
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<SmartLogin />} />
         <Route path="/register-school" element={<RegisterSchool />} />
         
-        {/* --- THE MAGIC INVITE ROUTE --- */}
-        {/* This is where teachers land when they click the WhatsApp link */}
+        {/* --- THE MAGIC TEACHER INVITE LINK --- */}
+        {/* Admin copies this from their dashboard to send via WhatsApp */}
         <Route path="/join/:schoolId" element={<TeacherJoin />} />
 
         {/* --- PROTECTED ADMIN ROUTES --- */}
@@ -59,44 +98,38 @@ function App() {
           } 
         />
 
-        {/* --- PROTECTED TEACHER/STUDENT ROUTES (Placeholders) --- */}
+        {/* --- PROTECTED TEACHER ROUTES --- */}
         <Route 
-          path="/dashboard" 
+          path="/teacher-portal" 
           element={
-            <ProtectedRoute>
-              {/* This logic can redirect to /admin or /teacher based on role */}
-              <DashboardRedirect />
+            <ProtectedRoute allowedRole="teacher">
+              <TeacherPortal />
             </ProtectedRoute>
           } 
         />
 
-        {/* 404 Page */}
-        <Route path="*" element={<div className="h-screen flex flex-col items-center justify-center">
-          <h1 className="text-4xl font-black">404</h1>
-          <p className="text-slate-500">Page not found</p>
-          <button onClick={() => window.location.href='/login'} className="mt-4 text-indigo-600 font-bold">Go Back Home</button>
-        </div>} />
+        {/* --- AUTH REDIRECTOR --- */}
+        <Route path="/dashboard" element={<DashboardRedirect />} />
+
+        {/* --- ERROR PAGES --- */}
+        <Route path="/unauthorized" element={
+          <div className="h-screen flex flex-col items-center justify-center text-center p-6">
+            <h1 className="text-6xl font-black text-slate-200">403</h1>
+            <p className="text-xl font-bold text-slate-800 mt-4">Access Denied</p>
+            <p className="text-slate-500 mb-6">You don't have permission to view this page.</p>
+            <button onClick={() => window.location.href='/login'} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold">Go to Login</button>
+          </div>
+        } />
+
+        <Route path="*" element={
+          <div className="h-screen flex flex-col items-center justify-center text-center p-6">
+            <h1 className="text-6xl font-black text-slate-200">404</h1>
+            <p className="text-xl font-bold text-slate-800 mt-4">Oops! Lost in Space?</p>
+            <p className="text-slate-500 mb-6">The page you are looking for doesn't exist.</p>
+            <button onClick={() => window.location.href='/login'} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold">Back to Safety</button>
+          </div>
+        } />
       </Routes>
     </Router>
   );
 }
-
-// Helper component to send users to the right dashboard after login
-function DashboardRedirect() {
-  const [role, setRole] = useState<string | null>(null);
-  
-  useEffect(() => {
-    const getRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setRole(user?.user_metadata.role);
-    };
-    getRole();
-  }, []);
-
-  if (!role) return null;
-  if (role === 'admin') return <Navigate to="/admin" />;
-  if (role === 'teacher') return <Navigate to="/teacher-portal" />;
-  return <Navigate to="/student-hub" />;
-}
-
-export default App;
