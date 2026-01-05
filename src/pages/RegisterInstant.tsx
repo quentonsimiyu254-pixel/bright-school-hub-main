@@ -1,82 +1,89 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-// Change graduationCap to GraduationCap
-import { UserPlus, Shield, Users, GraduationCap, Loader2 } from 'lucide-react';
+import { instantRegister } from '../lib/auth-service';
+import { UserPlus, Shield, Users } from 'lucide-react';
 
 export default function RegisterInstant() {
   const navigate = useNavigate();
+  const [formData, setFormData] = useState({ name: '', role: 'parent', phone: '', idNumber: '' });
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    role: 'parent', 
-    phone: '', 
-    idNumber: '' 
-  });
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      // 1. Save to Supabase (Profiles table)
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert([{
-          full_name: formData.name,
-          role: formData.role,
-          phone_number: formData.phone,
-          id_number: formData.idNumber
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // 2. BYPASS: Save session to localStorage so App.tsx knows we are logged in
-      localStorage.setItem('edusphere_user', JSON.stringify(data));
-
-      // 3. INSTANT REDIRECT
-      const paths: any = {
+      const user = await instantRegister(formData);
+      
+      // Role-based routing
+      const paths: Record<string, string> = {
         admin: '/admin',
         teacher: '/teacher-portal',
         parent: '/parent-portal'
       };
-      navigate(paths[formData.role] || '/');
       
+      navigate(paths[user.role] || '/dashboard');
     } catch (err) {
-      alert("Error saving details. Make sure your database table 'profiles' is ready.");
+      console.error(err);
+      alert("Registration failed. Please ensure your 'profiles' table is created in Supabase.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-[3rem] p-10 shadow-2xl border border-slate-100">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-slate-900 leading-tight">Create Account</h1>
-          <p className="text-slate-400 font-bold text-sm">Instant access • No verification</p>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-200">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-black text-slate-900 mb-2">Join Edusphere</h1>
+          <p className="text-indigo-600 font-bold uppercase text-xs tracking-widest">Instant Setup • No Verification</p>
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-4">
-          <input required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-600 font-medium" 
-            placeholder="Your Full Name" onChange={e => setFormData({...formData, name: e.target.value})} />
+        <form onSubmit={handleRegister} className="space-y-5">
+          {/* Name - Forced Dark Text */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 ml-2 uppercase">Full Name</label>
+            <input 
+              required 
+              type="text"
+              className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none focus:border-indigo-600 text-slate-900 font-bold placeholder:text-slate-300" 
+              placeholder="e.g. Quenton Masinde" 
+              value={formData.name}
+              onChange={e => setFormData({...formData, name: e.target.value})} 
+            />
+          </div>
           
-          <div className="relative">
-            <select className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none appearance-none font-bold text-slate-700"
-              onChange={e => setFormData({...formData, role: e.target.value})}>
-              <option value="parent">Register as Parent</option>
-              <option value="teacher">Register as Teacher</option>
-              <option value="admin">Register as Admin</option>
+          {/* Role */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 ml-2 uppercase">Your Role</label>
+            <select 
+              className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none focus:border-indigo-600 text-slate-900 font-bold appearance-none cursor-pointer"
+              value={formData.role}
+              onChange={e => setFormData({...formData, role: e.target.value})}
+            >
+              <option value="parent">👨‍👩‍👧 Parent</option>
+              <option value="teacher">👨‍🏫 Teacher</option>
+              <option value="admin">🔒 Admin</option>
             </select>
           </div>
 
-          <input required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-600 font-medium" 
-            placeholder="Phone Number" onChange={e => setFormData({...formData, phone: e.target.value})} />
+          {/* Phone */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 ml-2 uppercase">Phone Number</label>
+            <input 
+              type="tel"
+              className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl outline-none focus:border-indigo-600 text-slate-900 font-bold placeholder:text-slate-300" 
+              placeholder="07XX XXX XXX" 
+              value={formData.phone}
+              onChange={e => setFormData({...formData, phone: e.target.value})} 
+            />
+          </div>
 
-          <button disabled={loading} className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
-            {loading ? <Loader2 className="animate-spin" /> : "Start Using Edusphere"}
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+          >
+            {loading ? "Registering..." : "Start Learning"}
           </button>
         </form>
       </div>

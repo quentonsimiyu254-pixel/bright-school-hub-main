@@ -1,17 +1,30 @@
 import { supabase } from './supabase';
 
-export const detectIdentity = async (input: string) => {
-  // 1. Check if it's an Admission Number (e.g., ADM-123)
-  if (input.toUpperCase().startsWith('ADM')) {
-    return { type: 'student', field: 'admission_number' };
-  }
-  
-  // 2. Check if it's a Phone Number (e.g., 07... or +254...)
-  const phoneRegex = /^(?:254|\+254|0)?(7|1)\d{8}$/;
-  if (phoneRegex.test(input)) {
-    return { type: 'phone', field: 'phone_number' };
+// Make sure 'export' is written before 'const'
+export const instantRegister = async (formData: any) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert([{
+      full_name: formData.name,
+      role: formData.role,
+      phone_number: formData.phone,
+      id_number: formData.idNumber
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Supabase Insert Error:", error);
+    throw error;
   }
 
-  // 3. Default to Staff ID
-  return { type: 'staff', field: 'staff_id' };
+  // Save to local storage for the "Zero Friction" session
+  localStorage.setItem('edusphere_session', JSON.stringify(data));
+  return data;
+};
+
+export const detectIdentity = (input: string) => {
+  if (input.toUpperCase().startsWith('ADM')) return 'student';
+  if (/^(?:254|0)?(7|1)\d{8}$/.test(input)) return 'phone';
+  return 'staff';
 };
